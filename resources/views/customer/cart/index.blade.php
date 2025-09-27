@@ -1134,10 +1134,15 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Hàm tiến hành thanh toán
     function proceedToCheckout() {
+        console.log('proceedToCheckout function called');
+        
         const selectedProducts = Array.from(document.querySelectorAll('.product-checkbox:checked'))
             .map(checkbox => checkbox.value);
             
+        console.log('Selected products:', selectedProducts);
+            
         if (selectedProducts.length === 0) {
+            console.warn('No products selected');
             Swal.fire({
                 icon: 'warning',
                 title: 'Chưa chọn sản phẩm!',
@@ -1155,6 +1160,11 @@ document.addEventListener('DOMContentLoaded', function() {
             const quantity = parseInt(quantityInput.value);
             const productId = checkbox.value;
             
+            console.log('Checking stock for product:', {
+                'product_id': productId,
+                'quantity': quantity
+            });
+            
             // Kiểm tra nếu có cảnh báo tồn kho
             const outOfStockWarning = cartItem.querySelector('.stock-warning.out-of-stock');
             const lowStockWarning = cartItem.querySelector('.stock-warning.low-stock');
@@ -1162,16 +1172,19 @@ document.addEventListener('DOMContentLoaded', function() {
             if (outOfStockWarning) {
                 const productName = cartItem.querySelector('.product-title').textContent;
                 stockErrors.push(`Sản phẩm "${productName}" đã hết hàng!`);
+                console.error('Product out of stock:', productName);
             } else if (lowStockWarning) {
                 const productName = cartItem.querySelector('.product-title').textContent;
                 const availableStock = lowStockWarning.querySelector('span').textContent.match(/(\d+)/)[1];
                 if (quantity > parseInt(availableStock)) {
                     stockErrors.push(`Sản phẩm "${productName}" chỉ còn ${availableStock} sản phẩm trong kho!`);
+                    console.error('Product low stock:', productName, 'requested:', quantity, 'available:', availableStock);
                 }
             }
         });
         
         if (stockErrors.length > 0) {
+            console.error('Stock errors found:', stockErrors);
             Swal.fire({
                 icon: 'error',
                 title: 'Không thể thanh toán!',
@@ -1181,11 +1194,17 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // Lưu sản phẩm được chọn vào sessionStorage
-        sessionStorage.setItem('selectedCartItems', JSON.stringify(selectedProducts));
+        // Chuyển đến trang checkout với danh sách sản phẩm được chọn qua URL
+        const selectedItemsParam = encodeURIComponent(JSON.stringify(selectedProducts));
+        const checkoutUrl = '{{ route("checkout.index") }}?selected_items=' + selectedItemsParam;
         
-        // Chuyển đến trang checkout
-        window.location.href = '{{ route("checkout.index") }}';
+        console.log('Redirecting to checkout:', {
+            'selected_products': selectedProducts,
+            'encoded_param': selectedItemsParam,
+            'checkout_url': checkoutUrl
+        });
+        
+        window.location.href = checkoutUrl;
     }
     
     // Thêm event listener cho nút checkout

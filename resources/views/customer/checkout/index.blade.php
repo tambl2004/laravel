@@ -280,28 +280,87 @@
 <!-- JavaScript -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Lấy danh sách sản phẩm được chọn từ sessionStorage
-    const selectedItems = sessionStorage.getItem('selectedCartItems');
+    console.log('Checkout page loaded');
     
-    if (selectedItems) {
-        // Parse JSON và set vào hidden input
-        const selectedProductIds = JSON.parse(selectedItems);
-        document.getElementById('selected-items-input').value = JSON.stringify(selectedProductIds);
+    // Lấy danh sách sản phẩm được chọn từ URL parameter hoặc sessionStorage
+    let selectedProductIds = [];
+    
+    // Kiểm tra URL parameter trước
+    const urlParams = new URLSearchParams(window.location.search);
+    const selectedItemsFromUrl = urlParams.get('selected_items');
+    
+    console.log('URL params:', {
+        'selected_items': selectedItemsFromUrl,
+        'all_params': Object.fromEntries(urlParams.entries())
+    });
+    
+    if (selectedItemsFromUrl) {
+        try {
+            selectedProductIds = JSON.parse(decodeURIComponent(selectedItemsFromUrl));
+            document.getElementById('selected-items-input').value = JSON.stringify(selectedProductIds);
+            console.log('Selected items from URL:', selectedProductIds);
+        } catch (e) {
+            console.error('Error parsing selected items from URL:', e);
+        }
+    } else {
+        // Fallback: kiểm tra sessionStorage
+        const selectedItems = sessionStorage.getItem('selectedCartItems');
+        console.log('Selected items from sessionStorage:', selectedItems);
         
-        // Clear sessionStorage sau khi sử dụng
-        sessionStorage.removeItem('selectedCartItems');
+        if (selectedItems) {
+            try {
+                selectedProductIds = JSON.parse(selectedItems);
+                document.getElementById('selected-items-input').value = JSON.stringify(selectedProductIds);
+                console.log('Selected items from sessionStorage:', selectedProductIds);
+                // Clear sessionStorage sau khi sử dụng
+                sessionStorage.removeItem('selectedCartItems');
+            } catch (e) {
+                console.error('Error parsing selected items from sessionStorage:', e);
+            }
+        }
     }
+    
+    // Nếu không có sản phẩm nào được chọn, redirect về cart
+    if (selectedProductIds.length === 0) {
+        console.warn('No selected items found, redirecting to cart');
+        Swal.fire({
+            icon: 'warning',
+            title: 'Chưa chọn sản phẩm!',
+            text: 'Vui lòng chọn sản phẩm từ giỏ hàng trước khi thanh toán',
+            confirmButtonText: 'Đồng ý'
+        }).then(() => {
+            window.location.href = '{{ route("cart.index") }}';
+        });
+        return;
+    }
+    
+    console.log('Selected product IDs:', selectedProductIds);
+    console.log('Selected items input value:', document.getElementById('selected-items-input').value);
     
     // Xử lý submit form
     document.getElementById('checkoutForm').addEventListener('submit', function(e) {
+        console.log('Form submit event triggered');
+        
         // Đảm bảo selected_items được gửi
         const selectedItemsInput = document.getElementById('selected-items-input');
+        console.log('Selected items input before submit:', selectedItemsInput.value);
+        
         if (!selectedItemsInput.value) {
-            // Nếu không có selected items, lấy tất cả sản phẩm hiện tại
-            const currentProductIds = @json($selectedProductIds ?? []);
-            selectedItemsInput.value = JSON.stringify(currentProductIds);
+            console.error('No selected items found in form');
+            e.preventDefault();
+            Swal.fire({
+                icon: 'error',
+                title: 'Lỗi!',
+                text: 'Không có sản phẩm nào được chọn để thanh toán',
+                confirmButtonText: 'Đồng ý'
+            });
+            return false;
         }
+        
+        console.log('Form submitted successfully with selected items:', selectedItemsInput.value);
     });
+    
+    console.log('Checkout page initialization completed');
 });
 </script>
 

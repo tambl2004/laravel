@@ -346,9 +346,11 @@
                         
                         <!-- Nút yêu thích -->
                         @auth
-                            <button type="button" class="btn btn-outline-danger btn-lg favorite-btn" 
-                                    data-product-id="{{ $product->id }}" 
-                                    data-is-favorited="{{ Auth::user()->isFavorite($product->id) ? 'true' : 'false' }}">
+                            <button type="button" class="btn btn-outline-danger btn-lg btn-favorite {{ auth()->user()->isFavorite($product->id) ? 'favorited' : '' }}" 
+                                    data-product-id="{{ $product->id }}"
+                                    data-store-url="{{ route('favorites.store', $product->id) }}"
+                                    data-destroy-url="{{ route('favorites.destroy', $product->id) }}"
+                                    title="{{ auth()->user()->isFavorite($product->id) ? 'Xóa khỏi yêu thích' : 'Thêm vào yêu thích' }}">
                                 <i class="fas fa-heart me-2"></i>
                                 <span class="favorite-text">{{ Auth::user()->isFavorite($product->id) ? 'Đã yêu thích' : 'Thêm vào yêu thích' }}</span>
                             </button>
@@ -614,74 +616,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (e.key === 'Escape') {
                 closeModal();
             }
-        });
-    }
-    // Xử lý nút yêu thích
-    const favoriteBtn = document.querySelector('.favorite-btn');
-    if (favoriteBtn) {
-        favoriteBtn.addEventListener('click', function() {
-            const productId = this.dataset.productId;
-            const isFavorited = this.dataset.isFavorited === 'true';
-            const favoriteText = this.querySelector('.favorite-text');
-            const favoriteIcon = this.querySelector('i');
-            
-            // Gửi request toggle favorite
-            fetch(`/favorites/${productId}/toggle`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Cập nhật trạng thái nút
-                    this.dataset.isFavorited = data.is_favorited;
-                    
-                    if (data.is_favorited) {
-                        // Đã yêu thích
-                        this.classList.remove('btn-outline-danger');
-                        this.classList.add('btn-danger');
-                        favoriteText.textContent = 'Đã yêu thích';
-                        favoriteIcon.className = 'fas fa-heart me-2';
-                    } else {
-                        // Chưa yêu thích
-                        this.classList.remove('btn-danger');
-                        this.classList.add('btn-outline-danger');
-                        favoriteText.textContent = 'Thêm vào yêu thích';
-                        favoriteIcon.className = 'far fa-heart me-2';
-                    }
-                    
-                    // Hiển thị thông báo
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Thành công!',
-                        text: data.message,
-                        showConfirmButton: false,
-                        timer: 2000
-                    });
-                } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Lỗi!',
-                        text: data.message,
-                        showConfirmButton: false,
-                        timer: 2000
-                    });
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Lỗi!',
-                    text: 'Có lỗi xảy ra khi cập nhật yêu thích!',
-                    showConfirmButton: false,
-                    timer: 2000
-                });
-            });
         });
     }
     

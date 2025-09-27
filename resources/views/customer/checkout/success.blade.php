@@ -6,18 +6,47 @@
     <div class="row mb-5">
         <div class="col-12 text-center">
             <div class="success-icon mb-4">
-                <div class="success-circle bg-success text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 100px; height: 100px;">
-                    <i class="fas fa-check fa-3x"></i>
+                @if($order)
+                    <div class="success-circle bg-success text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 100px; height: 100px;">
+                        <i class="fas fa-check fa-3x"></i>
+                    </div>
+                @else
+                    <div class="success-circle bg-warning text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 100px; height: 100px;">
+                        <i class="fas fa-exclamation-triangle fa-3x"></i>
+                    </div>
+                @endif
+            </div>
+            
+            @if($order)
+                <h1 class="display-4 fw-bold text-success mb-3">Đặt Hàng Thành Công!</h1>
+                <p class="lead text-muted mb-4">
+                    Cảm ơn bạn đã đặt hàng. Chúng tôi sẽ xử lý đơn hàng của bạn trong thời gian sớm nhất.
+                </p>
+                <div class="alert alert-success d-inline-block">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Mã đơn hàng: <strong class="text-dark">{{ $order->order_number }}</strong>
                 </div>
-            </div>
-            <h1 class="display-4 fw-bold text-success mb-3">Đặt Hàng Thành Công!</h1>
-            <p class="lead text-muted mb-4">
-                Cảm ơn bạn đã đặt hàng. Chúng tôi sẽ xử lý đơn hàng của bạn trong thời gian sớm nhất.
-            </p>
-            <div class="alert alert-success d-inline-block">
-                <i class="fas fa-info-circle me-2"></i>
-                Mã đơn hàng: <strong class="text-dark">{{ $order->order_number }}</strong>
-            </div>
+                @if(session('momo_message'))
+                    <div class="alert alert-info d-inline-block mt-2">
+                        <i class="fas fa-mobile-alt me-2"></i>
+                        MoMo: {{ session('momo_message') }}
+                    </div>
+                @endif
+            @else
+                <h1 class="display-4 fw-bold text-warning mb-3">Thanh Toán Không Thành Công</h1>
+                <p class="lead text-muted mb-4">
+                    Thanh toán của bạn đã bị hủy hoặc thất bại. Vui lòng thử lại hoặc chọn phương thức thanh toán khác.
+                </p>
+                @if(session('momo_message'))
+                    <div class="alert alert-warning d-inline-block">
+                        <i class="fas fa-mobile-alt me-2"></i>
+                        MoMo: {{ session('momo_message') }}
+                        @if(session('momo_result_code'))
+                            <br><small>Mã lỗi: {{ session('momo_result_code') }}</small>
+                        @endif
+                    </div>
+                @endif
+            @endif
         </div>
     </div>
 
@@ -27,12 +56,34 @@
                 <div class="alert alert-success alert-dismissible fade show" role="alert">
                     <i class="fas fa-check-circle me-2"></i>
                     {{ session('success') }}
+                    @if(session('momo_message'))
+                        <br><small class="text-muted">MoMo: {{ session('momo_message') }}</small>
+                    @endif
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             </div>
         </div>
     @endif
 
+    @if(session('error'))
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    {{ session('error') }}
+                    @if(session('momo_message'))
+                        <br><small class="text-muted">MoMo: {{ session('momo_message') }}</small>
+                    @endif
+                    @if(session('momo_result_code'))
+                        <br><small class="text-muted">Mã lỗi: {{ session('momo_result_code') }}</small>
+                    @endif
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    @if($order)
     <div class="row">
         <!-- Chi tiết đơn hàng -->
         <div class="col-lg-8">
@@ -234,6 +285,7 @@
     </div>
     
     <!-- Thông báo email -->
+    @if($order && $order->customer_email)
     <div class="row mt-5">
         <div class="col-12">
             <div class="alert alert-info text-center">
@@ -247,6 +299,24 @@
             </div>
         </div>
     </div>
+    @endif
+    @else
+    <!-- Nút hành động cho trường hợp thanh toán thất bại -->
+    <div class="row mt-5">
+        <div class="col-12 text-center">
+            <div class="d-flex justify-content-center gap-3">
+                <a href="{{ route('cart.index') }}" class="btn btn-primary btn-lg px-4">
+                    <i class="fas fa-shopping-cart me-2"></i>
+                    Quay Lại Giỏ Hàng
+                </a>
+                <a href="{{ route('products.index') }}" class="btn btn-outline-primary btn-lg px-4">
+                    <i class="fas fa-store me-2"></i>
+                    Tiếp Tục Mua Sắm
+                </a>
+            </div>
+        </div>
+    </div>
+    @endif
 </div>
 
 <!-- CSS tùy chỉnh -->

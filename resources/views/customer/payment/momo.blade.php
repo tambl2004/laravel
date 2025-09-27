@@ -7,10 +7,10 @@
         <div class="col-12">
             <div class="d-flex align-items-center mb-3">
                 <div class="payment-icon bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 50px; height: 50px;">
-                    <i class="fas fa-mobile-alt fa-lg"></i>
+                    <i class="fas fa-credit-card fa-lg"></i>
                 </div>
                 <div>
-                    <h1 class="h2 mb-0 fw-bold text-dark">Thanh Toán MoMo</h1>
+                    <h1 class="h2 mb-0 fw-bold text-dark">Thanh Toán MoMo ATM</h1>
                     <p class="text-muted mb-0">Đơn hàng #{{ $order->order_number }}</p>
                 </div>
             </div>
@@ -125,8 +125,8 @@
                     <form action="{{ route('payment.momo.process', $order->id) }}" method="POST" id="momoForm" target="_blank">
                         @csrf
                         <button type="submit" class="btn btn-primary w-100 py-3 mb-3" id="momoBtn">
-                            <i class="fas fa-mobile-alt me-2"></i>
-                            Thanh Toán Bằng MoMo
+                            <i class="fas fa-credit-card me-2"></i>
+                            Thanh Toán Bằng MoMo ATM
                         </button>
                     </form>
                     
@@ -224,7 +224,7 @@ document.addEventListener('DOMContentLoaded', function() {
         e.preventDefault();
         
         // Hiển thị loading
-        momoBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Đang xử lý...';
+        momoBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Đang chuyển đến MoMo ATM...';
         momoBtn.disabled = true;
         
         // Submit form

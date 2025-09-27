@@ -21,6 +21,176 @@ class PaymentController extends Controller
     private $partnerCode = 'MOMOBKUN20180529';
     private $accessKey = 'klm05TvNBzhg7h7j';
     private $secretKey = 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa';
+    private $redirectUrl;
+    private $ipnUrl;
+
+    public function __construct()
+    {
+        $this->redirectUrl = route('checkout.success', 0); // Sẽ được cập nhật động trong từng method
+        $this->ipnUrl = route('payment.momo.ipn');
+    }
+
+    /**
+     * Tạo chữ ký HMAC SHA256 theo chuẩn MoMo
+     */
+    private function momoSign(string $rawHash, string $secretKey): string
+    {
+        return hash_hmac('sha256', $rawHash, $secretKey);
+    }
+
+    /**
+     * Tạo requestId ngẫu nhiên cho MoMo
+     */
+    private function momoCreateRequestId(): string
+    {
+        return date('YmdHis') . rand(1000, 9999);
+    }
+
+    /**
+     * Gọi API MoMo bằng Guzzle
+     */
+    private function momoPostJsonWithGuzzle(string $endpoint, array $data): array
+    {
+        try {
+            $client = new \GuzzleHttp\Client([
+                'verify' => false,
+                'timeout' => 30,
+                'connect_timeout' => 10,
+            ]);
+            $res = $client->post($endpoint, [
+                'headers' => [
+                    'Content-Type' => 'application/json'
+                ],
+                'body' => json_encode($data)
+            ]);
+            return json_decode($res->getBody(), true);
+        } catch (\Exception $e) {
+            Log::error('MoMo API call failed', [
+                'endpoint' => $endpoint,
+                'data' => $data,
+                'error' => $e->getMessage()
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Hiển thị trang thanh toán MoMo từ temp data (chưa tạo đơn hàng)
+     */
+    public function momoTemp(Request $request)
+    {
+        Log::info('PaymentController::momoTemp - Displaying MoMo temp payment page');
+        
+        // Lấy thông tin đơn hàng tạm từ session
+        $tempOrderData = session('temp_order_data');
+        
+        if (!$tempOrderData) {
+            Log::warning('PaymentController::momoTemp - No temp order data found in session');
+            return redirect()->route('cart.index')->with('error', 'Không tìm thấy thông tin đơn hàng. Vui lòng thử lại!');
+        }
+
+        Log::info('PaymentController::momoTemp - Temp order data found', [
+            'order_number' => $tempOrderData['order_number'],
+            'total_amount' => $tempOrderData['total_amount'],
+            'items_count' => count($tempOrderData['cart_items'])
+        ]);
+
+        return view('customer.payment.momo-temp', compact('tempOrderData'));
+    }
+
+    /**
+     * Xử lý redirect đến MoMo từ temp data
+     */
+    public function redirectToMoMoTemp(Request $request)
+    {
+        Log::info('PaymentController::redirectToMoMoTemp - Processing MoMo payment from temp data');
+        
+        // Lấy thông tin đơn hàng tạm từ session
+        $tempOrderData = session('temp_order_data');
+        
+        if (!$tempOrderData) {
+            Log::error('PaymentController::redirectToMoMoTemp - No temp order data found');
+            return redirect()->route('cart.index')->with('error', 'Không tìm thấy thông tin đơn hàng. Vui lòng thử lại!');
+        }
+
+        try {
+            // Tạo requestId và orderId cho MoMo
+            $requestId = $this->momoCreateRequestId();
+            $orderId = $requestId . '_TEMP'; // Thêm _TEMP để phân biệt với đơn hàng thật
+            
+            Log::info('PaymentController::redirectToMoMoTemp - Creating MoMo ATM request', [
+                'request_id' => $requestId,
+                'order_id' => $orderId,
+                'amount' => $tempOrderData['total_amount'],
+                'request_type' => 'payWithATM'
+            ]);
+
+            // Tạo dữ liệu request cho MoMo ATM
+            $redirectUrl = route('payment.momo.callback'); // Sử dụng callback để xử lý message từ MoMo
+            $rawHash = "accessKey={$this->accessKey}&amount={$tempOrderData['total_amount']}&extraData=&ipnUrl={$this->ipnUrl}&orderId={$orderId}&orderInfo={$tempOrderData['order_number']}&partnerCode={$this->partnerCode}&redirectUrl={$redirectUrl}&requestId={$requestId}&requestType=payWithATM";
+            $signature = $this->momoSign($rawHash, $this->secretKey);
+
+            $data = [
+                'partnerCode' => $this->partnerCode,
+                'partnerName' => "Test",
+                "storeId" => "MomoTestStore",
+                'requestId' => $requestId,
+                'amount' => $tempOrderData['total_amount'],
+                'orderId' => $orderId,
+                'orderInfo' => $tempOrderData['order_number'],
+                'redirectUrl' => $redirectUrl,
+                'ipnUrl' => $this->ipnUrl,
+                'lang' => 'vi',
+                'extraData' => '',
+                'requestType' => 'payWithATM',
+                'signature' => $signature
+            ];
+
+            Log::info('PaymentController::redirectToMoMoTemp - Sending request to MoMo ATM API', [
+                'endpoint' => $this->endpoint,
+                'request_type' => 'payWithATM',
+                'data' => $data
+            ]);
+
+            $result = $this->momoPostJsonWithGuzzle($this->endpoint, $data);
+            
+            Log::info('PaymentController::redirectToMoMoTemp - MoMo API response', [
+                'result' => $result
+            ]);
+
+            if ($result['resultCode'] == 0) {
+                // Lưu thông tin transaction vào session để xử lý sau
+                session(['temp_momo_transaction' => [
+                    'request_id' => $requestId,
+                    'order_id' => $orderId,
+                    'amount' => $tempOrderData['total_amount'],
+                    'order_number' => $tempOrderData['order_number'],
+                    'created_at' => now()
+                ]]);
+                
+                Log::info('PaymentController::redirectToMoMoTemp - Redirecting to MoMo ATM', [
+                    'pay_url' => $result['payUrl']
+                ]);
+                
+                return redirect($result['payUrl']);
+            } else {
+                Log::error('PaymentController::redirectToMoMoTemp - MoMo API error', [
+                    'result_code' => $result['resultCode'],
+                    'message' => $result['message'] ?? 'Unknown error'
+                ]);
+                
+                return redirect()->back()->with('error', 'Có lỗi xảy ra khi tạo giao dịch MoMo: ' . ($result['message'] ?? 'Lỗi không xác định'));
+            }
+
+        } catch (\Exception $e) {
+            Log::error('PaymentController::redirectToMoMoTemp - Exception occurred', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return redirect()->back()->with('error', 'Có lỗi xảy ra khi xử lý thanh toán. Vui lòng thử lại!');
+        }
+    }
 
     /**
      * Hiển thị trang thanh toán MoMo
@@ -77,7 +247,7 @@ class PaymentController extends Controller
             'signature' => $signature,
         ];
 
-        Log::info('MoMo request payload: ', $payload);
+        Log::info('MoMo ATM request payload: ', $payload);
 
         try {
             $response = Http::withHeaders(['Content-Type' => 'application/json; charset=UTF-8'])
@@ -95,7 +265,7 @@ class PaymentController extends Controller
             }
 
             $json = $response->json();
-            Log::info('MoMo response:', $json);
+            Log::info('MoMo ATM response:', $json);
 
             if (!empty($json['payUrl'])) {
                 $order->update([
@@ -121,54 +291,194 @@ class PaymentController extends Controller
     }
 
     /**
-     * Callback: người dùng được MoMo chuyển về sau thanh toán
+     * Callback từ MoMo - xử lý kết quả thanh toán và redirect đến success
      */
     public function callback(Request $request)
     {
+        Log::info('PaymentController::callback - MoMo callback received', [
+            'request_data' => $request->all(),
+            'url' => $request->fullUrl()
+        ]);
+
         $resultCode = $request->input('resultCode'); // 0 = success
+        $message = $request->input('message', '');
+        $orderId = $request->input('orderId', '');
+        $amount = $request->input('amount', 0);
         
-        // Có orderId thì lấy id thực từ "time_orderId"
+        // Decode message từ URL encoding
+        $message = urldecode($message);
+        
+        Log::info('PaymentController::callback - Processing callback', [
+            'result_code' => $resultCode,
+            'message' => $message,
+            'order_id' => $orderId,
+            'amount' => $amount
+        ]);
+
+        // Kiểm tra xem có phải temp order không
+        $isTempOrder = false;
         $order = null;
-        if ($request->filled('orderId')) {
-            $parts = explode('_', $request->orderId);
-            $orderId = end($parts);
-            $order = Order::find($orderId);
+        $tempOrderData = null;
+        
+        if ($orderId) {
+            // Kiểm tra xem có phải temp order không (có _TEMP)
+            if (strpos($orderId, '_TEMP') !== false) {
+                $isTempOrder = true;
+                $tempOrderData = session('temp_order_data');
+                
+                Log::info('PaymentController::callback - Temp order detected', [
+                    'momo_order_id' => $orderId,
+                    'has_temp_data' => $tempOrderData ? true : false
+                ]);
+            } else {
+                // Đơn hàng thật - lấy id thực từ "time_orderId"
+                $parts = explode('_', $orderId);
+                $realOrderId = end($parts);
+                $order = Order::find($realOrderId);
+
+                Log::info('PaymentController::callback - Real order lookup', [
+                    'momo_order_id' => $orderId,
+                    'parsed_order_id' => $realOrderId,
+                    'order_found' => $order ? true : false
+                ]);
+            }
         }
 
+        // Xử lý theo kết quả thanh toán
         if ($resultCode === '0' || $resultCode === 0) {
-            // ✅ Thành công: cập nhật trạng thái đơn và xóa giỏ hàng
-            if ($order) {
+            // ✅ THÀNH CÔNG
+            Log::info('PaymentController::callback - Payment successful', [
+                'result_code' => $resultCode,
+                'message' => $message,
+                'is_temp_order' => $isTempOrder
+            ]);
+
+            if ($isTempOrder && $tempOrderData) {
+                // Tạo đơn hàng thật từ temp data
+                try {
+                    $order = Order::create([
+                        'user_id' => $tempOrderData['user_id'],
+                        'order_number' => $tempOrderData['order_number'],
+                        'order_code' => '', // Sẽ được cập nhật sau khi gọi GHN API
+                        'subtotal' => $tempOrderData['subtotal'],
+                        'shipping_fee' => $tempOrderData['shipping_fee'],
+                        'total_amount' => $tempOrderData['total_amount'],
+                        'payment_method' => $tempOrderData['payment_method'],
+                        'payment_status' => 'paid',
+                        'shipping_name' => $tempOrderData['shipping_name'],
+                        'shipping_phone' => $tempOrderData['shipping_phone'],
+                        'shipping_address' => $tempOrderData['shipping_address'],
+                        'shipping_province_id' => $tempOrderData['shipping_province_id'],
+                        'shipping_province_name' => $tempOrderData['shipping_province_name'],
+                        'shipping_district_id' => $tempOrderData['shipping_district_id'],
+                        'shipping_district_name' => $tempOrderData['shipping_district_name'],
+                        'shipping_ward_id' => $tempOrderData['shipping_ward_id'],
+                        'shipping_ward_name' => $tempOrderData['shipping_ward_name'],
+                        'notes' => $tempOrderData['notes'],
+                        'status' => 'processing'
+                    ]);
+
+                    // Tạo chi tiết đơn hàng và trừ tồn kho
+                    foreach ($tempOrderData['cart_items'] as $item) {
+                        OrderItem::create([
+                            'order_id' => $order->id,
+                            'product_id' => $item['product']->id,
+                            'product_name' => $item['product']->name,
+                            'product_price' => $item['product']->price,
+                            'quantity' => $item['quantity'],
+                            'subtotal' => $item['subtotal'],
+                        ]);
+
+                        // Trừ tồn kho
+                        $item['product']->reduceStock(
+                            $item['quantity'],
+                            "Xuất hàng cho đơn hàng #{$order->order_number}",
+                            $order->id,
+                            $tempOrderData['user_id']
+                        );
+                    }
+
+                    // Xóa các sản phẩm đã đặt hàng khỏi giỏ hàng
+                    foreach ($tempOrderData['cart_items'] as $item) {
+                        CartItem::where('cart_id', $tempOrderData['cart_id'])
+                            ->where('product_id', $item['product']->id)
+                            ->delete();
+                    }
+
+                    // Xóa session temp data
+                    session()->forget(['temp_order_data', 'temp_momo_transaction', 'cart_selected_items']);
+
+                    Log::info('PaymentController::callback - Order created successfully', [
+                        'order_id' => $order->id,
+                        'order_number' => $order->order_number
+                    ]);
+
+                } catch (\Exception $e) {
+                    Log::error('PaymentController::callback - Error creating order', [
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString()
+                    ]);
+                    
+                    // Xóa temp data nếu có lỗi
+                    session()->forget(['temp_order_data', 'temp_momo_transaction']);
+                    
+                    return redirect()->route('checkout.success', 0)
+                        ->with('error', 'Có lỗi xảy ra khi tạo đơn hàng. Vui lòng liên hệ hỗ trợ.')
+                        ->with('momo_message', $message);
+                }
+
+            } else if ($order) {
+                // Cập nhật đơn hàng thật
                 $order->update([
                     'status' => 'processing',
                     'payment_status' => 'paid'
                 ]);
-                
-                // Xóa giỏ hàng sau khi thanh toán thành công
+
+                // Xóa giỏ hàng
                 $cart = Cart::where('user_id', $order->user_id)->first();
                 if ($cart) {
-                    // Lấy danh sách sản phẩm trong đơn hàng để xóa khỏi giỏ hàng
                     $orderProductIds = $order->items->pluck('product_id')->toArray();
                     CartItem::where('cart_id', $cart->id)
                            ->whereIn('product_id', $orderProductIds)
                            ->delete();
                 }
             }
-            // Chuyển về trang thanh toán thành công
-            return redirect()->route('payment.success', $order->id)
-                ->with('success', 'Thanh toán MoMo thành công! Đơn hàng của bạn đã được cập nhật.');
-        }
-
-        // ❌ Thất bại/hủy: set trạng thái chờ thanh toán cho MoMo
-        if ($order) {
-            $order->update([
-                'status' => 'waiting_payment', // Trạng thái đặc biệt cho MoMo chờ thanh toán
-                'payment_status' => 'pending'
+            
+            // Redirect đến success với thông báo thành công
+            Log::info('PaymentController::callback - Redirecting to success with order', [
+                'order_id' => $order->id ?? 0,
+                'message' => $message
             ]);
+            
+            return redirect()->route('checkout.success', $order->id ?? 0)
+                ->with('success', 'Thanh toán MoMo ATM thành công! Đơn hàng của bạn đã được tạo.')
+                ->with('momo_message', $message);
+
+        } else {
+            // ❌ THẤT BẠI
+            Log::warning('PaymentController::callback - Payment failed', [
+                'result_code' => $resultCode,
+                'message' => $message,
+                'is_temp_order' => $isTempOrder
+            ]);
+
+            // Xóa temp data nếu có
+            if ($isTempOrder) {
+                session()->forget(['temp_order_data', 'temp_momo_transaction']);
+                Log::info('PaymentController::callback - Temp data cleared for failed payment');
+            }
+
+            // Redirect đến success với thông báo thất bại
+            Log::info('PaymentController::callback - Redirecting to success with error', [
+                'message' => $message,
+                'result_code' => $resultCode
+            ]);
+            
+            return redirect()->route('checkout.success', 0)
+                ->with('error', 'Thanh toán MoMo ATM thất bại.')
+                ->with('momo_message', $message)
+                ->with('momo_result_code', $resultCode);
         }
-        
-        // Chuyển về trang thanh toán thất bại
-        return redirect()->route('payment.failed', $order->id)
-            ->with('error', 'Thanh toán MoMo thất bại hoặc bị hủy. Vui lòng thử lại hoặc chọn phương thức thanh toán khác.');
     }
 
     /**
@@ -264,7 +574,7 @@ class PaymentController extends Controller
             'payment_status' => 'pending'
         ]);
 
-        return redirect()->route('payment.success', $order->id)
+        return redirect()->route('checkout.success', $order->id)
             ->with('success', 'Đã chuyển sang thanh toán COD thành công!');
     }
 

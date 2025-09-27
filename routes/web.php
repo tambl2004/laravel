@@ -121,12 +121,6 @@ Route::get('/auth/google/callback', [SocialAuthController::class, 'handleGoogleC
 Route::get('/auth/facebook', [SocialAuthController::class, 'redirectToFacebook'])->name('auth.facebook');
 Route::get('/auth/facebook/callback', [SocialAuthController::class, 'handleFacebookCallback'])->name('auth.facebook.callback');
 
-// Routes cho Payment MoMo
-Route::get('/payment/momo/{orderId}', [App\Http\Controllers\PaymentController::class, 'momo'])->whereNumber('orderId')->name('payment.momo');
-Route::post('/payment/momo/{orderId}', [App\Http\Controllers\PaymentController::class, 'redirectToMoMo'])->whereNumber('orderId')->name('payment.momo.process');
-Route::get('/payment/momo/callback', [App\Http\Controllers\PaymentController::class, 'callback'])->name('payment.momo.callback');
-Route::post('/payment/momo/ipn', [App\Http\Controllers\PaymentController::class, 'ipn'])->name('payment.momo.ipn');
-Route::post('/payment/pay-again/{order}', [App\Http\Controllers\PaymentController::class, 'payAgain'])->name('payment.pay-again');
 
 // Route debug để test Google OAuth
 Route::get('/debug/google', function() {
@@ -310,16 +304,19 @@ Route::middleware('auth')->group(function () {
         Route::get('/chat/unread-count', [App\Http\Controllers\ChatController::class, 'getUnreadCount'])->name('chat.unread-count');
 });
 
-// Routes cho thanh toán
-Route::get('/checkout', [App\Http\Controllers\CheckoutController::class, 'index'])->name('checkout.index')->middleware('check.cart');
-Route::post('/checkout', [App\Http\Controllers\CheckoutController::class, 'store'])->name('checkout.store')->middleware('check.cart');
+// Routes cho checkout
+Route::get('/checkout', [App\Http\Controllers\CheckoutController::class, 'index'])->name('checkout.index');
+Route::post('/checkout', [App\Http\Controllers\CheckoutController::class, 'store'])->name('checkout.store');
 Route::get('/checkout/success/{order}', [App\Http\Controllers\CheckoutController::class, 'success'])->name('checkout.success');
 
+
 // Payment routes
-Route::get('/payment/momo/{order}', [App\Http\Controllers\PaymentController::class, 'momo'])->name('payment.momo');
-Route::post('/payment/momo/{order}/process', [App\Http\Controllers\PaymentController::class, 'redirectToMoMo'])->name('payment.momo.process');
+Route::get('/payment/momo/temp', [App\Http\Controllers\PaymentController::class, 'momoTemp'])->name('payment.momo.temp');
+Route::post('/payment/momo/temp', [App\Http\Controllers\PaymentController::class, 'redirectToMoMoTemp'])->name('payment.momo.temp.process');
 Route::get('/payment/momo/callback', [App\Http\Controllers\PaymentController::class, 'callback'])->name('payment.momo.callback');
 Route::post('/payment/momo/ipn', [App\Http\Controllers\PaymentController::class, 'ipn'])->name('payment.momo.ipn');
+Route::get('/payment/momo/{order}', [App\Http\Controllers\PaymentController::class, 'momo'])->name('payment.momo');
+Route::post('/payment/momo/{order}/process', [App\Http\Controllers\PaymentController::class, 'redirectToMoMo'])->name('payment.momo.process');
 Route::post('/payment/momo/{order}/pay-again', [App\Http\Controllers\PaymentController::class, 'payAgain'])->name('payment.momo.pay-again');
 Route::post('/payment/momo/{order}/cancel-order', [App\Http\Controllers\PaymentController::class, 'cancelOrder'])->name('payment.momo.cancel-order');
 
@@ -434,6 +431,35 @@ Route::get('/test-favorites', function() {
             'GET /favorites' => 'favorites.index',
             'POST /favorites/{product}' => 'favorites.store',
             'DELETE /favorites/{product}' => 'favorites.destroy'
-        ]
+        ],
+        'current_favorites_count' => App\Models\Favorite::count()
     ]);
+});
+
+// Test route để tạo favorite
+Route::post('/test-create-favorite', function(Request $request) {
+    $user = App\Models\User::first();
+    $product = App\Models\Product::first();
+    
+    if (!$user || !$product) {
+        return response()->json(['error' => 'No user or product found'], 400);
+    }
+    
+    try {
+        $favorite = App\Models\Favorite::create([
+            'user_id' => $user->id,
+            'product_id' => $product->id
+        ]);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Favorite created successfully',
+            'favorite_id' => $favorite->id
+        ]);
+    } catch (Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage()
+        ], 500);
+    }
 });

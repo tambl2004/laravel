@@ -61,9 +61,29 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (isFavorited) {
                         this.classList.remove('favorited');
                         this.title = 'Thêm vào yêu thích';
+                        // Cập nhật text cho nút lớn
+                        const favoriteText = this.querySelector('.favorite-text');
+                        if (favoriteText) {
+                            favoriteText.textContent = 'Thêm vào yêu thích';
+                        }
+                        // Cập nhật icon cho nút lớn
+                        const icon = this.querySelector('i');
+                        if (icon) {
+                            icon.className = 'far fa-heart me-2';
+                        }
                     } else {
                         this.classList.add('favorited');
                         this.title = 'Xóa khỏi yêu thích';
+                        // Cập nhật text cho nút lớn
+                        const favoriteText = this.querySelector('.favorite-text');
+                        if (favoriteText) {
+                            favoriteText.textContent = 'Đã yêu thích';
+                        }
+                        // Cập nhật icon cho nút lớn
+                        const icon = this.querySelector('i');
+                        if (icon) {
+                            icon.className = 'fas fa-heart me-2';
+                        }
                     }
                     
                     // Hiển thị thông báo thành công
