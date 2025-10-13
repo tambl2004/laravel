@@ -209,3 +209,8 @@ php artisan migrate:fresh --seed
   npm cache clean --force
   npm install
   ```
+
+
+
+chạy để test với facebook: ngrok http 8000
+chạy cập nhật đơn hàng tự động: php artisan schedule:work

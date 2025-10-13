@@ -90,7 +90,7 @@
                             @if($order->shipping_fee > 0)
                                 {{ number_format($order->shipping_fee) }}₫
                             @else
-                                Miễn phí
+                                Shop chịu phí
                             @endif
                         </span>
                     </div>

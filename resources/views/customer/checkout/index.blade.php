@@ -234,7 +234,7 @@
                             @if($shippingFee > 0)
                                 <span class="fw-bold">{{ number_format($shippingFee) }} VNĐ</span>
                             @else
-                                <span class="text-success fw-bold">Miễn phí</span>
+                                <span class="text-success fw-bold">Shop chịu phí</span>
                             @endif
                         </div>
                         

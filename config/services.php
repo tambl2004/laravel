@@ -46,7 +46,7 @@ return [
     'facebook' => [
         'client_id' => env('FACEBOOK_CLIENT_ID'),
         'client_secret' => env('FACEBOOK_CLIENT_SECRET'),
-        'redirect' => env('FACEBOOK_REDIRECT_URI', 'http://127.0.0.1:8000/auth/facebook/callback'),
+        'redirect' => env('FACEBOOK_REDIRECT', env('FACEBOOK_REDIRECT_URI', 'https://unsimmering-presley-speakably.ngrok-free.dev/auth/facebook/callback')),
     ],
 
     // GHN API Configuration

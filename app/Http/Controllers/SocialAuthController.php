@@ -81,45 +81,116 @@ class SocialAuthController extends Controller
     {
         return app(\Laravel\Socialite\Contracts\Factory::class)
             ->driver('facebook')
+            ->scopes(['public_profile']) // Chỉ yêu cầu thông tin công khai, không yêu cầu email
             ->redirect();
     }
 
     public function handleFacebookCallback()
     {
-        try {
-            $fbUser = app(\Laravel\Socialite\Contracts\Factory::class)
-                ->driver('facebook')
-                ->user();
-        } catch (Throwable $e) {
-            return redirect()->route('login')->with('warning', 'Đăng nhập Facebook thất bại. Vui lòng thử lại.');
+        // Chuẩn bị HTTP client cho Socialite, fix lỗi SSL cURL 60 ở môi trường local
+        $httpOptions = [];
+        if (app()->environment('local')) {
+            $httpOptions['verify'] = false;
         }
 
-        // Email có thể không trả về với Facebook nếu app scope không xin email
-        $email = method_exists($fbUser, 'getEmail') ? $fbUser->getEmail() : null;
+        $provider = app(\Laravel\Socialite\Contracts\Factory::class)->driver('facebook');
+        if (!empty($httpOptions)) {
+            $provider->setHttpClient(new Client($httpOptions));
+        }
 
-        // Tạo user theo email nếu có, nếu không có email thì tạo theo một email giả định duy nhất (đảm bảo unique)
-        $user = null;
-        if ($email) {
+        try {
+            $fbUser = $provider->user();
+        } catch (Throwable $e) {
+            // Log lỗi để debug
+            \Log::error('Facebook OAuth error: ' . $e->getMessage(), [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            try {
+                // Thử với stateless mode
+                $providerStateless = app(\Laravel\Socialite\Contracts\Factory::class)->driver('facebook')->stateless();
+                if (!empty($httpOptions)) {
+                    $providerStateless->setHttpClient(new Client($httpOptions));
+                }
+                $fbUser = $providerStateless->user();
+            } catch (Throwable $e2) {
+                \Log::error('Facebook OAuth stateless error: ' . $e2->getMessage());
+                return redirect()->route('login')->with('warning', 'Đăng nhập Facebook thất bại. Vui lòng thử lại.');
+            }
+        }
+
+        $facebookId = $fbUser->getId();
+        
+        // Facebook có thể không trả về email nếu scope không được cấu hình đúng
+        $email = null;
+        try {
+            $email = $fbUser->getEmail();
+        } catch (Exception $e) {
+            \Log::info('Facebook email not available', ['error' => $e->getMessage()]);
+        }
+
+        // Log thông tin Facebook user để debug
+        \Log::info('Facebook login attempt', [
+            'facebook_id' => $facebookId,
+            'email' => $email,
+            'name' => $fbUser->getName(),
+            'avatar' => method_exists($fbUser, 'getAvatar') ? $fbUser->getAvatar() : null
+        ]);
+
+        // Tìm user theo Facebook ID trước, sau đó mới tìm theo email
+        $user = User::where('facebook_id', $facebookId)->first();
+        
+        if (!$user && $email) {
             $user = User::where('email', $email)->first();
         }
 
         if (!$user) {
-            $generatedEmail = $email ?: (sprintf('%s@facebook.local', $fbUser->getId() ?: Str::uuid()));
+            // Tạo user mới với email giả định duy nhất
+            $generatedEmail = sprintf('%s@facebook.local', $facebookId);
             $user = User::create([
-                // Tên user dùng đúng tên hiển thị từ Facebook
                 'name' => $fbUser->getName() ?: 'Người dùng Facebook',
                 'email' => $generatedEmail,
-                'password' => Str::random(32),
+                'password' => bcrypt(Str::random(32)), // Băm password để an toàn
                 'role' => 'customer',
+                'facebook_id' => $facebookId,
+                'email_verified_at' => null, // Không verify email giả định
+            ]);
+
+            \Log::info('Created new Facebook user', [
+                'user_id' => $user->id,
+                'facebook_id' => $facebookId,
+                'email' => $user->email,
+                'has_real_email' => $email ? true : false
             ]);
         } else {
+            // Cập nhật thông tin user hiện có
             if ($fbUser->getName()) {
                 $user->name = $fbUser->getName();
             }
-        }
+            
+            // Nếu user chưa có Facebook ID, cập nhật nó
+            if (!$user->facebook_id) {
+                $user->facebook_id = $facebookId;
+            }
 
-        // Facebook: chưa kiểm duyệt (không set email_verified_at)
-        $user->save();
+            // Nếu có email thật từ Facebook và user chưa verify email, thì verify
+            if ($email && $email !== $user->email && !$user->email_verified_at) {
+                // Cập nhật email thật nếu user đang dùng email giả định
+                if (str_ends_with($user->email, '@facebook.local')) {
+                    $user->email = $email;
+                    $user->email_verified_at = now();
+                }
+            }
+
+            $user->save();
+
+            \Log::info('Updated existing user with Facebook login', [
+                'user_id' => $user->id,
+                'facebook_id' => $facebookId,
+                'email_updated' => $email ? true : false
+            ]);
+        }
 
         Auth::login($user, true);
 

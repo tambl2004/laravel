@@ -156,17 +156,62 @@ Route::get('/debug/google', function() {
     ]);
 });
 
+// Route debug để test Facebook OAuth
+Route::get('/debug/facebook', function() {
+    $clientId = config('services.facebook.client_id');
+    $redirectUri = config('services.facebook.redirect');
+    $scope = 'email,public_profile';
+    
+    $authUrl = 'https://www.facebook.com/v18.0/dialog/oauth?' . http_build_query([
+        'client_id' => $clientId,
+        'redirect_uri' => $redirectUri,
+        'scope' => $scope,
+        'response_type' => 'code',
+        'state' => 'facebook'
+    ]);
+    
+    return response()->json([
+        'auth_url' => $authUrl,
+        'config' => config('services.facebook'),
+        'test_links' => [
+            'facebook_redirect' => route('auth.facebook.redirect'),
+            'facebook_callback' => route('auth.facebook.callback')
+        ]
+    ]);
+});
+
 // Route debug để kiểm tra user
 Route::get('/debug/user/{email}', function($email) {
     $user = \App\Models\User::where('email', $email)->first();
     if($user) {
         return response()->json([
             'found' => true,
+            'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
             'email_verified_at' => $user->email_verified_at,
             'google_id' => $user->google_id,
             'facebook_id' => $user->facebook_id,
+            'role' => $user->role,
+            'avatar' => $user->avatar,
+            'created_at' => $user->created_at,
+            'updated_at' => $user->updated_at
+        ]);
+    }
+    return response()->json(['found' => false]);
+});
+
+// Route debug để kiểm tra user theo Facebook ID
+Route::get('/debug/facebook-user/{facebookId}', function($facebookId) {
+    $user = \App\Models\User::where('facebook_id', $facebookId)->first();
+    if($user) {
+        return response()->json([
+            'found' => true,
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'facebook_id' => $user->facebook_id,
+            'role' => $user->role,
             'created_at' => $user->created_at
         ]);
     }
@@ -284,6 +329,7 @@ Route::middleware('auth')->group(function () {
     Route::put('/cart/update/{product}', [App\Http\Controllers\CartController::class, 'update'])->name('cart.update');
     Route::delete('/cart/remove/{product}', [App\Http\Controllers\CartController::class, 'remove'])->name('cart.remove');
     Route::delete('/cart/clear', [App\Http\Controllers\CartController::class, 'clear'])->name('cart.clear');
+    Route::post('/cart/save-selected', [App\Http\Controllers\CartController::class, 'saveSelected'])->name('cart.save-selected');
     
     // Routes cho quản lý địa chỉ
     Route::get('/addresses', [AddressController::class, 'index'])->name('addresses.index');
@@ -451,4 +497,14 @@ Route::get('/test-favorites', function() {
             'DELETE /favorites/{product}' => 'favorites.destroy'
         ]
     ]);
+});
+
+// Routes xử lý yêu cầu xóa dữ liệu cho Facebook Login App và GDPR
+Route::get('/delete', [App\Http\Controllers\DataDeletionController::class, 'delete']);
+Route::post('/data-deletion', [App\Http\Controllers\DataDeletionController::class, 'dataDeletion']);
+Route::get('/privacy/data-deletion', [App\Http\Controllers\DataDeletionController::class, 'privacyInfo']);
+
+// Route hiển thị trang HTML về chính sách xóa dữ liệu
+Route::get('/privacy/data-deletion-page', function () {
+    return view('privacy.data-deletion');
 });

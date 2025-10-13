@@ -87,8 +87,9 @@ class GhnService
         $isPrepaid = (bool)($orderData['is_prepaid'] ?? false);
 
         return [
-            // payment_type_id: 1 = Người gửi trả phí; 2 = Người nhận trả phí
-            'payment_type_id' => $isPrepaid ? 1 : 2,
+            // payment_type_id: 1 = Người gửi trả phí (shop); 2 = Người nhận trả phí (khách)
+            // Mặc định shop trả phí ship để khách hàng không mất phí vận chuyển
+            'payment_type_id' => 1,
             'note' => $orderData['notes'] ?? '',
             'required_note' => 'KHONGCHOXEMHANG',
             'from_name' => 'Kitchen Hood Store', // Tên shop

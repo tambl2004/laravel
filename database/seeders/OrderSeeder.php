@@ -19,29 +19,45 @@ class OrderSeeder extends Seeder
         $orders = [
             [
                 'order_number' => 'ORD-20250120-001',
-                'customer_name' => 'Nguyễn Văn An',
-                'customer_email' => 'nguyenvanan@example.com',
-                'customer_phone' => '0123456789',
-                'customer_address' => '123 Đường ABC, Phường 1, Quận 1, TP.HCM',
-                'payment_method' => 'cod',
-                'notes' => 'Giao hàng vào buổi sáng',
-                'status' => 'pending',
-                'total_amount' => 2500000,
+                'user_id' => null, // Đơn hàng guest
+                'subtotal' => 2500000,
                 'shipping_fee' => 50000,
-                'final_amount' => 2550000
+                'discount_amount' => 0,
+                'total_amount' => 2550000,
+                'payment_method' => 'cod',
+                'payment_status' => 'pending',
+                'shipping_name' => 'Nguyễn Văn An',
+                'shipping_phone' => '0123456789',
+                'shipping_address' => '123 Đường ABC',
+                'shipping_province_id' => 79,
+                'shipping_province_name' => 'TP.HCM',
+                'shipping_district_id' => 769,
+                'shipping_district_name' => 'Quận 1',
+                'shipping_ward_id' => 26834,
+                'shipping_ward_name' => 'Phường Bến Nghé',
+                'notes' => 'Giao hàng vào buổi sáng',
+                'status' => 'pending'
             ],
             [
                 'order_number' => 'ORD-20250120-002',
-                'customer_name' => 'Trần Thị Bình',
-                'customer_email' => 'tranthibinh@example.com',
-                'customer_phone' => '0987654321',
-                'customer_address' => '456 Đường XYZ, Phường 2, Quận 3, TP.HCM',
-                'payment_method' => 'bank_transfer',
-                'notes' => 'Giao hàng vào buổi chiều',
-                'status' => 'processing',
-                'total_amount' => 3500000,
+                'user_id' => null, // Đơn hàng guest
+                'subtotal' => 3500000,
                 'shipping_fee' => 0,
-                'final_amount' => 3500000
+                'discount_amount' => 0,
+                'total_amount' => 3500000,
+                'payment_method' => 'bank_transfer',
+                'payment_status' => 'paid',
+                'shipping_name' => 'Trần Thị Bình',
+                'shipping_phone' => '0987654321',
+                'shipping_address' => '456 Đường XYZ',
+                'shipping_province_id' => 79,
+                'shipping_province_name' => 'TP.HCM',
+                'shipping_district_id' => 770,
+                'shipping_district_name' => 'Quận 3',
+                'shipping_ward_id' => 27022,
+                'shipping_ward_name' => 'Phường Võ Thị Sáu',
+                'notes' => 'Giao hàng vào buổi chiều',
+                'status' => 'processing'
             ]
         ];
 

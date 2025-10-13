@@ -190,7 +190,11 @@
                                         </div>
                                         <div class="d-flex justify-content-between mb-2">
                                             <span>Phí vận chuyển:</span>
-                                            <span>{{ number_format($order->shipping_fee) }} VNĐ</span>
+                                            @if($order->shipping_fee > 0)
+                                                <span>{{ number_format($order->shipping_fee) }} VNĐ</span>
+                                            @else
+                                                <span class="text-success fw-bold">Shop chịu phí</span>
+                                            @endif
                                         </div>
                                         @if($order->discount_amount > 0)
                                         <div class="d-flex justify-content-between mb-2 text-success">

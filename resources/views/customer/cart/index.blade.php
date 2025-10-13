@@ -757,7 +757,7 @@
                             <i class="fas fa-check-square me-1"></i>Chọn tất cả
                         </button>
                         <span class="selected-count">
-                            Đã chọn: <span id="selected-count">{{ count($cartItems) }}</span>/{{ count($cartItems) }} sản phẩm
+                            Đã chọn: <span id="selected-count">0</span>/{{ count($cartItems) }} sản phẩm
                         </span>
                     </div>
 
@@ -768,8 +768,7 @@
                             <div class="form-check">
                                 <input class="form-check-input product-checkbox" type="checkbox" 
                                        value="{{ $item['product']->id }}" 
-                                       id="product-{{ $item['product']->id }}"
-                                       checked>
+                                       id="product-{{ $item['product']->id }}">
                                 <label class="form-check-label" for="product-{{ $item['product']->id }}">
                                     <i class="fas fa-check"></i>
                                 </label>
@@ -848,18 +847,18 @@
                     
                     <div class="summary-item">
                         <span class="summary-label">Tổng tiền sản phẩm:</span>
-                        <span class="summary-value" id="subtotal-display">{{ number_format($total) }} VNĐ</span>
+                        <span class="summary-value" id="subtotal-display">0 VNĐ</span>
                     </div>
                     
                     <div class="summary-item">
                         <span class="summary-label">Phí vận chuyển:</span>
-                        <span class="summary-value text-success">Miễn phí</span>
+                        <span class="summary-value text-success">Shop chịu phí</span>
                     </div>
                     
                     <div class="total-section">
                         <div class="summary-item">
                             <span class="summary-label">Tổng cộng:</span>
-                            <span class="total-display" id="total-display">{{ number_format($total) }} VNĐ</span>
+                            <span class="total-display" id="total-display">0 VNĐ</span>
                         </div>
                     </div>
                     <div class="check-out-btn">
@@ -1188,11 +1187,34 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // Lưu sản phẩm được chọn vào sessionStorage
-        sessionStorage.setItem('selectedCartItems', JSON.stringify(selectedProducts));
-        
-        // Chuyển đến trang checkout
-        window.location.href = '{{ route("checkout.index") }}';
+        // Lưu sản phẩm được chọn vào session thông qua AJAX
+        fetch('{{ route("cart.save-selected") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+            },
+            body: JSON.stringify({ selected_items: selectedProducts })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Chuyển đến trang checkout
+                window.location.href = '{{ route("checkout.index") }}';
+            } else {
+                throw new Error(data.message || 'Có lỗi xảy ra');
+            }
+        })
+        .catch(error => {
+            Swal.fire({
+                icon: 'error',
+                title: 'Lỗi!',
+                text: error.message || 'Không thể lưu sản phẩm được chọn',
+                confirmButtonText: 'Thử lại'
+            });
+        });
     }
     
     // Thêm event listener cho nút checkout

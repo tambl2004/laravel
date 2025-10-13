@@ -158,6 +158,27 @@ class CartController extends Controller
     }
 
     /**
+     * Lưu danh sách sản phẩm được chọn vào session
+     */
+    public function saveSelected(Request $request)
+    {
+        $this->authorizeUser();
+        
+        $request->validate([
+            'selected_items' => 'required|array',
+            'selected_items.*' => 'integer|exists:products,id'
+        ]);
+        
+        // Lưu danh sách sản phẩm được chọn vào session
+        session(['cart_selected_items' => $request->selected_items]);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Đã lưu sản phẩm được chọn'
+        ]);
+    }
+
+    /**
      * Xóa toàn bộ giỏ hàng
      */
     public function clear()

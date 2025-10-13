@@ -75,13 +75,22 @@ class CheckoutController extends Controller
             return redirect()->route('cart.index')->with('error', 'Giỏ hàng trống!');
         }
 
-        // Sử dụng tất cả sản phẩm trong cart để thanh toán
+        // Lấy danh sách sản phẩm được chọn từ session
+        $selectedItems = session('cart_selected_items', []);
+        
+        // Nếu không có sản phẩm nào được chọn, chuyển về giỏ hàng
+        if (empty($selectedItems)) {
+            return redirect()->route('cart.index')->with('error', 'Vui lòng chọn sản phẩm để thanh toán!');
+        }
+
+        // Chỉ sử dụng sản phẩm được chọn để thanh toán
         $cartItems = [];
         $total = 0;
         $shippingFee = 0;
 
         foreach ($items as $item) {
-            if ($item->product) {
+            // Chỉ xử lý các sản phẩm được chọn
+            if (in_array($item->product_id, $selectedItems) && $item->product) {
                 $lineTotal = $item->product->price * $item->quantity;
                 $cartItems[] = [
                     'product' => $item->product,
@@ -92,8 +101,8 @@ class CheckoutController extends Controller
             }
         }
 
-        // Tính phí vận chuyển (có thể tích hợp với GHN API)
-        $shippingFee = 0; // Tạm thời miễn phí
+        // Tính phí vận chuyển - Shop trả phí ship cho khách hàng
+        $shippingFee = 0; // Shop chịu phí vận chuyển, khách hàng không mất phí ship
 
         // Tính tổng cuối cùng
         $finalAmount = $total + $shippingFee;
@@ -128,12 +137,21 @@ class CheckoutController extends Controller
             return redirect()->route('cart.index')->with('error', 'Giỏ hàng trống!');
         }
 
-        // Sử dụng tất cả sản phẩm trong cart để đặt hàng
+        // Lấy danh sách sản phẩm được chọn từ session
+        $selectedItems = session('cart_selected_items', []);
+        
+        // Nếu không có sản phẩm nào được chọn, chuyển về giỏ hàng
+        if (empty($selectedItems)) {
+            return redirect()->route('cart.index')->with('error', 'Vui lòng chọn sản phẩm để thanh toán!');
+        }
+
+        // Chỉ sử dụng sản phẩm được chọn để đặt hàng
         $cartItems = [];
         $total = 0;
 
         foreach ($items as $item) {
-            if ($item->product) {
+            // Chỉ xử lý các sản phẩm được chọn
+            if (in_array($item->product_id, $selectedItems) && $item->product) {
                 $lineTotal = $item->product->price * $item->quantity;
                 $cartItems[] = [
                     'product' => $item->product,
@@ -144,8 +162,8 @@ class CheckoutController extends Controller
             }
         }
 
-        // Tính phí vận chuyển
-        $shippingFee = 0; // Tạm thời miễn phí
+        // Tính phí vận chuyển - Shop trả phí ship cho khách hàng
+        $shippingFee = 0; // Shop chịu phí vận chuyển, khách hàng không mất phí ship
         $finalAmount = $total + $shippingFee;
 
         // Kiểm tra quyền sở hữu địa chỉ
@@ -218,7 +236,7 @@ class CheckoutController extends Controller
             // Xóa session lựa chọn sản phẩm
             session()->forget('cart_selected_items');
 
-                // Đơn chưa thanh toán online -> GHN thu hộ, người nhận trả phí
+                // Đơn chưa thanh toán online -> Shop trả phí ship, GHN thu hộ tiền hàng
                 $this->createGhnShippingOrder($order, $cartItems, false);
                 // COD hoặc bank transfer - đặt hàng thành công ngay
                 return redirect()->route('checkout.success', $order->id)
@@ -446,7 +464,7 @@ class CheckoutController extends Controller
             ];
 
             // Gọi GHN API để tạo đơn hàng vận chuyển
-            // Truyền cờ is_prepaid để GHN set cod=0 và người gửi trả phí khi đã thanh toán
+            // Shop luôn trả phí ship (payment_type_id = 1), khách hàng không mất phí vận chuyển
             $orderData['is_prepaid'] = $isPrepaid;
             $ghnResult = $ghnService->createShippingOrder($orderData);
 
